@@ -9,10 +9,14 @@ body {
 canvas {
     text-align: center ;
     padding-top:10px ; 
-    padding-left: 18%;
+    padding-left: 38%;
 }
 
 img {
     width: auto;
     height: auto;
+}
+
+html {
+    text-align: center;
 }
