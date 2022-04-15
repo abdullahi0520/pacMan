@@ -1,0 +1,18 @@
+body {
+    margin: auto;
+    background-color: black;
+    color: white;
+    text-align: center;
+    
+}
+
+canvas {
+    text-align: center ;
+    padding-top:10px ; 
+    padding-left: 18%;
+}
+
+img {
+    width: auto;
+    height: auto;
+}

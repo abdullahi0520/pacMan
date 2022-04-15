@@ -27,13 +27,22 @@ class Player {
         this.position = position
         this.velocity = velocity
         this.radius = 15
+        this.radians = 0.75
+        this.openRate = 0.12
+        this.rotation = 0
     }
     draw() {
+        c.save()
+        c.translate(this.position.x,this.position.y)
+        c.rotate(this.rotation)
+        c.translate(-this.position.x, -this.position.y)
         c.beginPath()
-        c.arc(this.position.x,this.position.y, this.radius, 0, Math.PI * 2 )
+        c.arc(this.position.x,this.position.y, this.radius, this.radians, Math.PI * 2 - this.radians)
+        c.lineTo(this.position.x, this.position.y)
         c.fillStyle = 'yellow'
         c.fill()
         c.closePath
+        c.restore()
     }
 
     update() {
@@ -41,21 +50,26 @@ class Player {
         this.position.x += this.velocity.x
         this.position.y += this.velocity.y
 
+        if(this.radians < 0 || this.radians > .75) this.openRate = -this.openRate
+        this.radians += this.openRate
     }
 }
 
 class Ghost {
+    static speed = 2
     constructor({position, velocity, color = 'red'}) {
         this.position = position
         this.velocity = velocity
         this.radius = 15
         this.color = color
         this.prevCollisions = []
+        this.speed = 2
+        this.scared = false
     }
     draw() {
         c.beginPath()
         c.arc(this.position.x,this.position.y, this.radius, 0, Math.PI * 2 )
-        c.fillStyle =  this.color
+        c.fillStyle = this.scared ? ' blue' : this.color
         c.fill()
         c.closePath
     }
@@ -81,7 +95,23 @@ class Pellet {
     }
 }
 
+class PowerUp {
+    constructor({position}) {
+        this.position = position 
+        this.radius = 7
+    }
+    draw() {
+        c.beginPath()
+        c.arc(this.position.x,this.position.y, this.radius, 0, Math.PI * 2 )
+        c.fillStyle = 'white'
+        c.fill()
+        c.closePath
+    }
+}
+
 const pellets = []
+
+const powerUps = []
 
 const boundaries = []
 
@@ -92,9 +122,20 @@ const ghost = [
         y:Boundary.height + Boundary.height / 2
         },
         velocity: {
-            x:5,
+            x:Ghost.speed,
             y:0
         }
+    }),
+    new Ghost({
+        position: { 
+        x:Boundary.width * 6 + Boundary.width / 2,
+        y:Boundary.height * 3 + Boundary.height / 2
+        },
+        velocity: {
+            x:Ghost.speed,
+            y:0
+        },
+        color: 'pink'
     })
 ]
 
@@ -140,7 +181,7 @@ const map = [
   ['|', '.', '[', ']', '.', '.', '.', '[', ']', '.', '|'],
   ['|', '.', '.', '.', '.', '^', '.', '.', '.', '.', '|'],
   ['|', '.', 'b', '.', '[', '5', ']', '.', 'b', '.', '|'],
-  ['|', '.', '.', '.', '.', '.', '.', '.', '.', '.', '|'],
+  ['|', '.', '.', '.', '.', '.', '.', '.', '.', 'p', '|'],
   ['4', '-', '-', '-', '-', '-', '-', '-', '-', '-', '3']
 ]
 function createImage(src) {
@@ -342,6 +383,17 @@ map.forEach((row, i) => {
           })
         )
         break
+
+        case 'p':
+        powerUps.push(
+          new PowerUp({
+            position: {
+              x: j * Boundary.width + Boundary.width / 2,
+              y: i * Boundary.height + Boundary.height / 2
+            }
+          })
+        )
+        break
         }
     })
 })
@@ -349,14 +401,15 @@ function circleCollidesWitRectangle({
     circle,
     rectangle
 }) {
-    return (circle.position.y - circle.radius + circle.velocity.y <= rectangle.position.y + rectangle.height &&
-        circle.position.x + circle.radius + circle.velocity.x >= rectangle.position.x &&
-         circle.position.y + circle.radius + circle.velocity.y >= rectangle.position.y &&
-          circle.position.x - circle.radius + circle.velocity.x <= rectangle.position.x + rectangle.width)
+    const padding = Boundary.width / 2 - circle.radius - 1
+    return (circle.position.y - circle.radius + circle.velocity.y <= rectangle.position.y + rectangle.height + padding &&
+        circle.position.x + circle.radius + circle.velocity.x >= rectangle.position.x - padding &&
+         circle.position.y + circle.radius + circle.velocity.y >= rectangle.position.y - padding &&
+          circle.position.x - circle.radius + circle.velocity.x <= rectangle.position.x + rectangle.width + padding)
 }
-
+let animationId
 function animate () {
-    requestAnimationFrame(animate)
+    animationId = requestAnimationFrame(animate)
     c.clearRect(0, 0, canvas.width,canvas.height )
     if (keys.w.pressed && lastKey === 'w' ) {
         for (let i = 0; i < boundaries.length; i ++) {
@@ -427,6 +480,51 @@ function animate () {
             }
         } 
     }
+    for (let i = ghost.length - 1; 0 <= i; i--){
+        const ghosts = ghost[i]
+    if(
+        Math.hypot(ghosts.position.x - player.position.x, ghosts.position.y - player.position.y) < ghosts.radius + player.radius 
+    ) {
+        if(ghosts.scared) {
+            ghost.splice(i,1)
+        } else {
+
+        
+        cancelAnimationFrame(animationId)
+         }
+        }
+
+    }
+
+
+    if( pellets.length - 1 === 0) {
+        cancelAnimationFrame(animationId)
+        console.log('you WON')
+    }
+
+    for (let i = powerUps.length - 1; 0 <= i; i--){
+        const powerUp = powerUps[i]
+
+        powerUp.draw()
+
+        if(
+            Math.hypot(powerUp.position.x - player.position.x, powerUp.position.y - player.position.y) < powerUp.radius + player.radius
+        ) {
+            powerUps.splice(i,1)
+
+            ghost.forEach((ghosts) => {
+                ghosts.scared = true
+
+                setTimeout(() => {
+                    ghosts.scared = false
+
+                    
+                }, 5000)
+                
+            })
+        }
+    }
+
     for (let i = pellets.length - 1; 0 < i; i--){
         const pellet = pellets[i]
         
@@ -443,9 +541,10 @@ function animate () {
     }
     
    
-    boundaries.forEach(boundary => {
+    boundaries.forEach((boundary) => {
         boundary.draw()
-        if (circleCollidesWitRectangle({
+        if (
+            circleCollidesWitRectangle({
             circle: player,
             rectangle: boundary
         })
@@ -462,11 +561,15 @@ function animate () {
 
     ghost.forEach(ghosts => {
         ghosts.update()
+
+        
+
         const collisions = []
         boundaries.forEach(boundary => {
             if (!collisions.includes('right') && circleCollidesWitRectangle({
-                circle: {...ghosts,velocity: {
-                    x: 5,
+                circle: {...ghosts, 
+                    velocity: {
+                    x: ghosts.speed,
                     y:0
                 }},
                 rectangle: boundary
@@ -475,8 +578,9 @@ function animate () {
                 collisions.push('right')
             }
             if (!collisions.includes('left') && circleCollidesWitRectangle({
-                circle: {...ghosts,velocity: {
-                    x: -5,
+                circle: {...ghosts,
+                    velocity: {
+                    x: -ghosts.speed,
                     y:0
                 }},
                 rectangle: boundary
@@ -485,9 +589,10 @@ function animate () {
                 collisions.push('left')
             }
             if (!collisions.includes('up') && circleCollidesWitRectangle({
-                circle: {...ghosts,velocity: {
+                circle: {...ghosts,
+                    velocity: {
                     x: 0,
-                    y:-5
+                    y:-ghosts.speed
                 }},
                 rectangle: boundary
             })
@@ -495,9 +600,10 @@ function animate () {
                 collisions.push('up')
             }
             if (!collisions.includes('down') && circleCollidesWitRectangle({
-                circle: {...ghosts,velocity: {
+                circle: {...ghosts,
+                    velocity: {
                     x: 0,
-                    y:5
+                    y:ghosts.speed
                 }},
                 rectangle: boundary
             })
@@ -505,13 +611,14 @@ function animate () {
                 collisions.push('down')
             }
         })
-        if( collisions > ghosts.prevCollisions.length)
+        // console.log(collisions)
+        if( collisions.length > ghosts.prevCollisions.length)
         ghosts.prevCollisions = collisions
-        if(collisions !== JSON.stringify(ghosts.prevCollisions)) {
+        if(JSON.stringify(collisions) !== JSON.stringify(ghosts.prevCollisions)) {
             if(ghosts.velocity.x > 0) ghosts.prevCollisions.push('right')
             else if(ghosts.velocity.x < 0) ghosts.prevCollisions.push('left')
-            else if(ghosts.velocity.y > 0) ghosts.prevCollisions.push('up')
-            else if(ghosts.velocity.y < 0) ghosts.prevCollisions.push('down')
+            else if(ghosts.velocity.y < 0) ghosts.prevCollisions.push('up')
+            else if(ghosts.velocity.y > 0) ghosts.prevCollisions.push('down')
 
            const pathways = ghosts.prevCollisions.filter(collision => {
                return !collisions.includes(collision)
@@ -520,27 +627,33 @@ function animate () {
 
            switch (direction) {
                case 'down':
-                   ghosts.velocity.y = 5
+                   ghosts.velocity.y = ghosts.speed
                    ghosts.velocity.x = 0
                 break
                 case 'up':
-                    ghosts.velocity.y = -5
+                    ghosts.velocity.y = -ghosts.speed
                     ghosts.velocity.x = 0
                  break
                  case 'right':
                     ghosts.velocity.y = 0
-                    ghosts.velocity.x = -5
+                    ghosts.velocity.x = ghosts.speed
                  break
                  case 'left':
                     ghosts.velocity.y = 0
-                    ghosts.velocity.x = 5
+                    ghosts.velocity.x = -ghosts.speed
                  break
            }
            ghosts.prevCollisions = []
         }
     })
-    
+ 
+    if(player.velocity.x > 0 ) player.rotation = 0
+    else if (player.velocity.x < 0) player.rotation = Math.PI
+    else if (player.velocity.y > 0) player.rotation = Math.PI / 2
+    else if (player.velocity.y < 0) player.rotation = Math.PI * 1.5
 }
+
+
 animate()
 
 
